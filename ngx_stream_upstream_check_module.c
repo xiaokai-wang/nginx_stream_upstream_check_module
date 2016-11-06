@@ -15,11 +15,12 @@ static ngx_int_t ngx_stream_upstream_check_get_shm_name(ngx_str_t *shm_name,
 static char *ngx_stream_upstream_check_init_shm(ngx_conf_t *cf, void *conf);
 static ngx_int_t ngx_stream_upstream_check_init_shm_zone(ngx_shm_zone_t *shm_zone,
     void *data);
+/*
 static ngx_uint_t ngx_stream_upstream_check_add_dynamic_peer_shm(ngx_pool_t *pool,
-    ngx_stream_upstream_check_srv_conf_t *ucscf, ngx_addr_t *peer_addr)
+    ngx_stream_upstream_check_srv_conf_t *ucscf, ngx_addr_t *peer_addr);
 static void ngx_stream_upstream_check_clear_dynamic_peer_shm(
-    ngx_stream_check_peer_shm_t *peer_shm)
-
+    ngx_stream_check_peer_shm_t *peer_shm);
+*/
 static ngx_int_t ngx_stream_check_init_process(ngx_cycle_t *cycle);
 
 static void ngx_stream_check_peek_handler(ngx_event_t *event);
@@ -389,8 +390,10 @@ ngx_stream_check_add_peer(ngx_conf_t *cf, ngx_stream_upstream_srv_conf_t *uscf,
         return NGX_ERROR;
     }
 
-    ucscf = ngx_stream_conf_get_module_srv_conf(cf, ngx_stream_upstream_module);
-    ucmcf = ngx_stream_conf_get_module_main_conf(cf, ngx_stream_upstream_module);
+    ucscf = ngx_stream_conf_get_module_srv_conf(cf, 
+                                            ngx_stream_upstream_check_module);
+    ucmcf = ngx_stream_conf_get_module_main_conf(cf, 
+                                            ngx_stream_upstream_check_module);
 
     peers_conf = ucmcf->peers_conf;
 
@@ -426,7 +429,7 @@ ngx_stream_upstream_check_add_dynamic_peer(ngx_pool_t *pool,
         return NGX_ERROR;
     }
 
-    ucscf = ngx_http_conf_upstream_srv_conf(us, ngx_stream_upstream_check_module);
+    ucscf = ngx_stream_conf_upstream_srv_conf(us, ngx_stream_upstream_check_module);
 
     if(ucscf->check_interval == 0) {
         return NGX_ERROR;
@@ -507,7 +510,7 @@ ngx_stream_upstream_check_add_dynamic_peer(ngx_pool_t *pool,
         }
     }
 
-    ngx_memzero(peer, sizeof(ngx_http_upstream_check_peer_t));
+    ngx_memzero(peer, sizeof(ngx_stream_upstream_check_peer_t));
 
     peer->conf = ucscf;
     peer->index = index;
@@ -515,7 +518,7 @@ ngx_stream_upstream_check_add_dynamic_peer(ngx_pool_t *pool,
     peer->peer = peer_addr;
 
     ngx_log_debug3(NGX_LOG_DEBUG_STREAM, pool->log, 0,
-                   "http upstream check add dynamic upstream: %V, "
+                   "stream upstream check add dynamic upstream: %V, "
                    "peer: %V, index: %ui",
                    &us->host, &peer_addr->name, index);
 
@@ -562,7 +565,7 @@ ngx_stream_upstream_check_delete_dynamic_peer(ngx_str_t *name,
             continue;
         }
 
-        ngx_log_debug3(NGX_LOG_DEBUG_HTTP, ngx_cycle->log, 0,
+        ngx_log_debug3(NGX_LOG_DEBUG_STREAM, ngx_cycle->log, 0,
                        "stream upstream check delete [%ui], index=%ui, addr:%V",
                        i, peer[i].index, &peer[i].peer->name);
 TODO:
@@ -665,7 +668,7 @@ ngx_stream_upstream_check_add_dynamic_peer_shm(ngx_pool_t *pool,
         index = peers_shm->number++;
     }
 
-    ngx_memzero(&peer_shm[index], sizeof(ngx_http_upstream_check_peer_shm_t));
+    ngx_memzero(&peer_shm[index], sizeof(ngx_stream_check_peer_shm_t));
 
     peer_shm[index].socklen = peer_addr->socklen;
     peer_shm[index].sockaddr = ngx_slab_alloc_locked(shpool,
@@ -774,7 +777,7 @@ ngx_stream_check_get_shm_name(ngx_str_t *shm_name, ngx_pool_t *pool)
     }
 
     last = ngx_snprintf(shm_name->data, SHM_NAME_LEN, "%s#%ui",
-                        "ngx_stream_upstream", ngx_stream_check_shm_generation);
+           "ngx_stream_upstream_check_module", ngx_stream_check_shm_generation);
 
     shm_name->len = last - shm_name->data;
 
@@ -1921,8 +1924,8 @@ ngx_stream_upstream_check_init_shm(ngx_conf_t *cf, void *conf)
     shm_zone = ngx_shared_memory_add(cf, shm_name, shm_size,
                                      &ngx_stream_upstream_check_module);
 
-    ngx_log_debug2(NGX_LOG_DEBUG_HTTP, cf->log, 0,
-                   "http upstream check, upsteam:%V, shm_zone size:%ui",
+    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, cf->log, 0,
+                   "stream upstream check, upsteam:%V, shm_zone size:%ui",
                    shm_name, shm_size);
 
     shm_zone->data = ucmcf->peers_conf;
@@ -1946,7 +1949,7 @@ ngx_stream_upstream_check_get_shm_name(ngx_str_t *shm_name, ngx_pool_t *pool,
     }
 
     last = ngx_snprintf(shm_name->data, SHM_NAME_LEN, "%s#%ui",
-                        "ngx_stream_upstream_check", generation);
+                        "ngx_stream_upstream_check_module", generation);
 
     shm_name->len = last - shm_name->data;
 
@@ -2026,7 +2029,7 @@ ngx_stream_check_init_process(ngx_cycle_t *cycle)
     }
 
     shm_zone = ngx_shared_memory_find(cycle, &shm_name, 
-                                      &ngx_stream_upstream_module);
+                                      &ngx_stream_upstream_check_module);
 
     if (shm_zone == NULL || shm_zone->data == NULL) {
         return NGX_OK;
@@ -2158,7 +2161,7 @@ ngx_stream_upstream_check_status_handler(ngx_stream_session_t *r)
     }
 
     shm_zone = ngx_shared_memory_find((ngx_cycle_t *)ngx_cycle, &shm_name, 
-                                      &ngx_stream_upstream_module);
+                                      &ngx_stream_upstream_check_module);
 
     if (shm_zone == NULL || shm_zone->data == NULL) {
 
