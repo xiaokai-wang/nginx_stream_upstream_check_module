@@ -10,8 +10,8 @@ Table of Contents
 * [Status](#status)
 * [Synopsis](#synopsis)
 * [Description](#description)
-* [Directives](#functions)
-    * [check](#upsync)
+* [Directives](#directives)
+    * [check](#check)
         * [interval](#interval)
         * [rise](#rise)
         * [fall](#fall)
@@ -30,7 +30,7 @@ Table of Contents
 Status
 ======
 
-This module is still under active development.
+This module is still active development, can be used production environment.
 
 Synopsis
 ====
@@ -44,7 +44,9 @@ stream {
         server 192.168.0.1:80;
         server 192.168.0.2:80;
 
-            check interval=5000 rise=1 fall=3 timeout=4000;
+        check interval=3000 rise=2 fall=5 timeout=1000 type=http;
+        check_http_send "GET /proxy_test HTTP/1.0\r\n\r\n";
+        check_http_expect_alive http_2xx http_3xx;
     }
 
     server {
@@ -98,7 +100,7 @@ The parameters' meanings are:
         2.  *ssl_hello* sends a client ssl hello packet and receives the
             server ssl hello packet.
 
-        3.  *stream* sends a http request packet, receives and parses the http
+        3.  *http* sends a http request packet, receives and parses the http
             response to diagnose if the upstream server is alive.
 
         4.  *mysql* connects to the mysql server, receives the greeting
@@ -106,9 +108,6 @@ The parameters' meanings are:
 
         5.  *ajp* sends a AJP Cping packet, receives and parses the AJP
             Cpong response to diagnose if the upstream server is alive.
-
-        6.  *fastcgi* send a fastcgi request, receives and parses the
-            fastcgi response to diagnose if the upstream server is alive.
 
 check_http_send
 --------
@@ -160,7 +159,7 @@ description: Display the health checking servers' status by HTTP. This directive
 TODO
 ====
 
-* http check.
+* test for ssl_hello and mysql.
 
 [Back to TOC](#table-of-contents)
 
