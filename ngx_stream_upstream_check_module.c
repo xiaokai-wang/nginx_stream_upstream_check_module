@@ -390,11 +390,14 @@ ngx_stream_check_add_peer(ngx_conf_t *cf, ngx_stream_upstream_srv_conf_t *uscf,
         return NGX_ERROR;
     }
 
-    ucscf = ngx_stream_conf_get_module_srv_conf(cf, 
+    ucscf = ngx_stream_conf_upstream_srv_conf(uscf, 
                                             ngx_stream_upstream_check_module);
     ucmcf = ngx_stream_conf_get_module_main_conf(cf, 
                                             ngx_stream_upstream_check_module);
 
+    if(ucscf->send.len == 0) {
+        return NGX_ERROR;
+    }
     peers_conf = ucmcf->peers_conf;
 
     peer_conf = ngx_array_push(&peers_conf->peers);
@@ -2212,7 +2215,6 @@ ngx_stream_upstream_check_status_handler(ngx_stream_session_t *r)
             "    <th>Index</th>\n"
             "    <th>Name</th>\n"
             "    <th>Status</th>\n"
-            "    <th>Busyness</th>\n"
             "    <th>Rise counts</th>\n"
             "    <th>Fall counts</th>\n"
             "    <th>Access counts</th>\n"
@@ -2226,7 +2228,6 @@ ngx_stream_upstream_check_status_handler(ngx_stream_session_t *r)
                 "    <td>%ui</td>\n" 
                 "    <td>%V</td>\n" 
                 "    <td>%s</td>\n" 
-                "    <td>%ui</td>\n" 
                 "    <td>%ui</td>\n" 
                 "    <td>%ui</td>\n" 
                 "    <td>%ui</td>\n" 
