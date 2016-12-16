@@ -2150,7 +2150,7 @@ static void
 ngx_stream_upstream_check_status_handler(ngx_stream_session_t *r) 
 {
     size_t                            buffer_size;
-    ngx_buf_t                        *b;
+    ngx_buf_t                        *b_header, *b_body;
     ngx_str_t                         shm_name;
     ngx_uint_t                        i;
     ngx_shm_zone_t                   *shm_zone;
@@ -2185,22 +2185,13 @@ ngx_stream_upstream_check_status_handler(ngx_stream_session_t *r)
     buffer_size = peers_conf->peers.nelts * ngx_pagesize / 4;
     buffer_size = ngx_align(buffer_size, ngx_pagesize) + ngx_pagesize;
 
-    b = ngx_create_temp_buf(r->connection->pool, buffer_size);
-    if (b == NULL) {
+    b_header = ngx_create_temp_buf(r->connection->pool, buffer_size);
+    b_body = ngx_create_temp_buf(r->connection->pool, buffer_size);
+    if (b_header == NULL || b_body == NULL) {
         return;
     }
 
-    //HTTP header
-    b->last = ngx_snprintf(b->last, b->end - b->last,
-                           "HTTP/1.0 200 OK\r\n");
-    b->last = ngx_snprintf(b->last, b->end - b->last,
-                           "Server: nginx\r\n");
-    b->last = ngx_snprintf(b->last, b->end - b->last,
-                           "Content-Type: text/plain\r\n");
-    b->last = ngx_snprintf(b->last, b->end - b->last,
-                           "Connection: close\r\n\r\n");
-
-    b->last = ngx_sprintf(b->last, 
+    b_body->last = ngx_sprintf(b_body->last, 
             "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\n"
             "\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n"
             "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n"
@@ -2223,7 +2214,7 @@ ngx_stream_upstream_check_status_handler(ngx_stream_session_t *r)
             peers_conf->peers.nelts, &shm_name);
 
     for (i = 0; i < peers_conf->peers.nelts; i++) {
-        b->last = ngx_sprintf(b->last, 
+        b_body->last = ngx_sprintf(b_body->last, 
                 "  <tr%s>\n"
                 "    <td>%ui</td>\n" 
                 "    <td>%V</td>\n" 
@@ -2243,12 +2234,25 @@ ngx_stream_upstream_check_status_handler(ngx_stream_session_t *r)
                 peer_conf[i].conf->check_type_conf->name);
     }
 
-    b->last = ngx_sprintf(b->last, 
-            "</table>\n"
-            "</body>\n"
-            "</html>\n");
+    b_body->last = ngx_sprintf(b_body->last, 
+                               "</table>\n"
+                               "</body>\n"
+                               "</html>\n");
 
-    ngx_stream_upstream_status_send(r, b);
+    //HTTP header
+    b_header->last = ngx_snprintf(b_header->last, b_header->end - b_header->last,
+                                  "HTTP/1.0 200 OK\r\n");
+    b_header->last = ngx_snprintf(b_header->last, b_header->end - b_header->last,
+                                  "Server: nginx\r\n");
+    b_header->last = ngx_snprintf(b_header->last, b_header->end - b_header->last,
+                                  "Content-Type: text/html\r\n");
+    b_header->last = ngx_snprintf(b_header->last, b_header->end - b_header->last,
+                           "Content-Length: %d\r\n", b_body->last - b_body->pos);
+    b_header->last = ngx_snprintf(b_header->last, b_header->end - b_header->last,
+                                  "Connection: close\r\n\r\n");
+
+    ngx_stream_upstream_status_send(r, b_header); //send header
+    ngx_stream_upstream_status_send(r, b_body); //send body
 
     ngx_stream_close_connection(r->connection);
 
